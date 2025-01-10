@@ -9,7 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func ConnectionDatabase(ctx context.Context) (*mongo.Collection, error) {
+func ConnectionDatabaseUsers(ctx context.Context) (*mongo.Collection, error) {
 	// Define the MongoDB connection string
 	var mongoURI string
 

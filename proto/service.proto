@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package bookrental;
+option go_package = "/pb;pb";
+
+// Define the gRPC service
+service BookRentalService {
+    // User-related operations
+    rpc RegisterUser (RegisterUserRequest) returns (RegisterUserResponse);
+    rpc LoginUser (LoginUserRequest) returns (LoginUserResponse);
+
+    // Book-related operations
+    rpc AddBook (AddBookRequest) returns (BookResponse);
+    rpc RemoveBook (RemoveBookRequest) returns (BookResponse);
+    rpc BorrowBook (BorrowBookRequest) returns (BorrowBookResponse);
+    rpc ReturnBook (ReturnBookRequest) returns (ReturnBookResponse);
+    rpc GetBooks (GetBooksRequest) returns (GetBooksResponse);
+
+    // Borrow-related operations
+    rpc GetBorrowedBooks (GetBorrowedBooksRequest) returns (GetBorrowedBooksResponse);
+}
+
+// Messages for User operations
+message RegisterUserRequest {
+    string username = 1;
+    string password = 2;
+}
+
+message RegisterUserResponse {
+    string message = 1;
+    string user_id = 2; // UUID of the registered user
+}
+
+message LoginUserRequest {
+    string username = 1;
+    string password = 2;
+}
+
+message LoginUserResponse {
+    string message = 1;
+    string token = 2; // JWT or session token
+}
+
+// Messages for Book operations
+message AddBookRequest {
+    string title = 1;
+    string author = 2;
+    string published_date = 3; // ISO 8601 timestamp as string
+}
+
+message BookResponse {
+    string message = 1;
+    string book_id = 2; // UUID of the book
+}
+
+message RemoveBookRequest {
+    string book_id = 1; // UUID of the book
+}
+
+message BorrowBookRequest {
+    string book_id = 1; // UUID of the book
+    string user_id = 2; // UUID of the user borrowing the book
+}
+
+message BorrowBookResponse {
+    string message = 1;
+    string borrow_id = 2; // UUID of the borrow record
+}
+
+message ReturnBookRequest {
+    string borrow_id = 1; // UUID of the borrow record
+}
+
+message ReturnBookResponse {
+    string message = 1;
+    string book_id = 2; // UUID of the returned book
+}
+
+message GetBooksRequest {
+    string status = 1; // Filter by book status (e.g., "Available", "Borrowed")
+    string user_id = 2; // Optional: filter by user ID
+}
+
+message GetBooksResponse {
+    repeated Book books = 1;
+}
+
+// Borrow-related operations
+message GetBorrowedBooksRequest {
+    string user_id = 1; // ID of the user whose borrow history is requested
+}
+
+message GetBorrowedBooksResponse {
+    repeated BorrowedBook borrowed_books = 1;
+}
+
+// Entity messages
+message Book {
+    string id = 1; // UUID of the book
+    string title = 2;
+    string author = 3;
+    string published_date = 4; // ISO 8601 timestamp as string
+    string status = 5; // "Available" or "Borrowed"
+    string user_id = 6; // ID of the user who borrowed the book, if any
+}
+
+message User {
+    string id = 1; // UUID of the user
+    string username = 2;
+    string password = 3; // Hashed password
+}
+
+message BorrowedBook {
+    string id = 1; // UUID of the borrow record
+    string book_id = 2; // UUID of the borrowed book
+    string user_id = 3; // UUID of the user who borrowed the book
+    string borrowed_date = 4; // ISO 8601 timestamp as string
+    string return_date = 5; // ISO 8601 timestamp as string (null if not returned)
+}

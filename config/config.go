@@ -36,6 +36,6 @@ func ConnectionDatabaseUsers(ctx context.Context) (*mongo.Collection, error) {
 	}
 
 	// Return the collection
-	collection := client.Database("gc2").Collection("users")
+	collection := client.Database("GC2").Collection("users")
 	return collection, nil
 }

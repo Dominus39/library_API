@@ -10,4 +10,6 @@ func main() {
 	e := echo.New()
 
 	e.POST("/register", handler.RegisterUser)
+
+	e.Logger.Fatal(e.Start(":8080"))
 }

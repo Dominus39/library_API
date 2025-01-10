@@ -26,8 +26,11 @@ type BookRentalServiceServer struct {
 func (s *BookRentalServiceServer) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest) (*pb.RegisterUserResponse, error) {
 	var existingUser entity.User
 	err := s.usersCollection.FindOne(ctx, bson.M{"username": req.Username}).Decode(&existingUser)
-	if err != nil {
+	if err == nil {
 		return nil, status.Errorf(codes.AlreadyExists, "username already exists")
+	}
+	if err != mongo.ErrNoDocuments {
+		return nil, status.Errorf(codes.Internal, "failed to check existing user: %v", err)
 	}
 
 	newUser := entity.User{
@@ -50,6 +53,12 @@ func (s *BookRentalServiceServer) RegisterUser(ctx context.Context, req *pb.Regi
 }
 
 func UnaryAuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	fmt.Printf("Handling method: %s\n", info.FullMethod)
+
+	if info.FullMethod == "/bookrental.BookRentalService/RegisterUser" {
+		return handler(ctx, req)
+	}
+
 	ctx, err := AuthInterceptor(ctx)
 	if err != nil {
 		return nil, err

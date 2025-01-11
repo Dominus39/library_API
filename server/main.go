@@ -108,6 +108,26 @@ func (s *BookRentalServiceServer) AddBook(ctx context.Context, req *pb.AddBookRe
 	}, nil
 }
 
+func (s *BookRentalServiceServer) RemoveBook(ctx context.Context, req *pb.RemoveBookRequest) (*pb.BookResponse, error) {
+	bookID, err := primitive.ObjectIDFromHex(req.BookId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid book ID format: %v", err)
+	}
+
+	result, err := s.booksCollection.DeleteOne(ctx, bson.M{"_id": bookID})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to delete book: %v", err)
+	}
+
+	if result.DeletedCount == 0 {
+		return nil, status.Errorf(codes.NotFound, "Book not found")
+	}
+
+	return &pb.BookResponse{
+		Message: "Book successfully removed",
+	}, nil
+}
+
 func UnaryAuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	fmt.Printf("Handling method: %s\n", info.FullMethod)
 

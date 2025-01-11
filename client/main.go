@@ -11,6 +11,7 @@ func main() {
 
 	e.POST("/register", handler.RegisterUser)
 	e.POST("/login", handler.LoginUser)
+	e.POST("/book/add", handler.AddBook)
 
 	e.Logger.Fatal(e.Start(":8080"))
 }

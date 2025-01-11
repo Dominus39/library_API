@@ -100,8 +100,7 @@ message Book {
     string title = 2;
     string author = 3;
     string published_date = 4; // ISO 8601 timestamp as string
-    string status = 5; // "Available" or "Borrowed"
-    string user_id = 6; // ID of the user who borrowed the book, if any
+    string status = 5; // "Available" or "Borrowed"    
 }
 
 message User {

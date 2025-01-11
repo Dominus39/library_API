@@ -8,9 +8,12 @@ import (
 	"gc2-yugo/pb"
 	"log"
 	"net"
+	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -21,7 +24,12 @@ import (
 type BookRentalServiceServer struct {
 	pb.UnimplementedBookRentalServiceServer
 	usersCollection *mongo.Collection
+	booksCollection *mongo.Collection
 }
+
+type contextKey string
+
+const usernameKey contextKey = "username"
 
 func (s *BookRentalServiceServer) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest) (*pb.RegisterUserResponse, error) {
 	var existingUser entity.User
@@ -76,6 +84,30 @@ func (s *BookRentalServiceServer) LoginUser(ctx context.Context, req *pb.LoginUs
 	}, nil
 }
 
+func (s *BookRentalServiceServer) AddBook(ctx context.Context, req *pb.AddBookRequest) (*pb.BookResponse, error) {
+	publishedDate, err := time.Parse("2006-01-02", req.PublishedDate)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid published_date format: %v", err)
+	}
+
+	newBook := entity.Book{
+		ID:            primitive.NewObjectID(),
+		Title:         req.Title,
+		Author:        req.Author,
+		PublishedDate: publishedDate,
+		Status:        "Available",
+	}
+
+	_, err = s.booksCollection.InsertOne(ctx, newBook)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to add book: %v", err)
+	}
+
+	return &pb.BookResponse{
+		Message: "book succesfully added",
+	}, nil
+}
+
 func UnaryAuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	fmt.Printf("Handling method: %s\n", info.FullMethod)
 
@@ -95,14 +127,29 @@ func AuthInterceptor(ctx context.Context) (context.Context, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		fmt.Println("No metadata found")
-		return nil, status.Errorf(codes.Unauthenticated, "Unauthorized")
+		return nil, status.Errorf(codes.Unauthenticated, "Unauthorized: No metadata found")
 	}
 
-	token := md["authorization"]
-	if len(token) == 0 {
+	tokenList := md["authorization"]
+	if len(tokenList) == 0 {
 		fmt.Println("Invalid or missing token")
-		return nil, status.Errorf(codes.Unauthenticated, "Unauthorized")
+		return nil, status.Errorf(codes.Unauthenticated, "Unauthorized: invalid or missing token")
 	}
+
+	token := strings.TrimPrefix(tokenList[0], "Bearer ")
+
+	claims, err := validateJWT(token)
+	if err != nil {
+		fmt.Printf("Token validation failed: %v\n", err)
+		return nil, status.Errorf(codes.Unauthenticated, "Unauthorized: %v", err)
+	}
+
+	username, ok := claims["username"].(string)
+	if !ok {
+		return nil, status.Errorf(codes.Unauthenticated, "Unauthorized: Invalid token claims")
+	}
+
+	ctx = context.WithValue(ctx, usernameKey, username)
 
 	fmt.Println("Token validated successfully")
 	return ctx, nil
@@ -111,11 +158,37 @@ func AuthInterceptor(ctx context.Context) (context.Context, error) {
 func generateJWT(username string) (string, error) {
 	secretKey := []byte("12345")
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+	claims := jwt.MapClaims{
 		"username": username,
-	})
+		"exp":      time.Now().Add(time.Hour * 24).Unix(),
+		"iat":      time.Now().Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	return token.SignedString(secretKey)
+}
+
+func validateJWT(tokenString string) (jwt.MapClaims, error) {
+	secretKey := []byte("12345")
+
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return secretKey, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+
+		return claims, nil
+	}
+
+	return nil, fmt.Errorf("invalid token")
 }
 
 func main() {
@@ -123,7 +196,12 @@ func main() {
 
 	usersCollection, err := config.ConnectionDatabaseUsers(ctx)
 	if err != nil {
-		log.Fatalf("failed to connect database: %v", err)
+		log.Fatalf("failed to connect users database: %v", err)
+	}
+
+	booksCollection, err := config.ConnectionDatabaseBooks(ctx)
+	if err != nil {
+		log.Fatalf("failed to connect books database: %v", err)
 	}
 
 	grpcServer := grpc.NewServer(
@@ -131,6 +209,7 @@ func main() {
 	)
 	bookRentalService := &BookRentalServiceServer{
 		usersCollection: usersCollection,
+		booksCollection: booksCollection,
 	}
 
 	pb.RegisterBookRentalServiceServer(grpcServer, bookRentalService)

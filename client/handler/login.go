@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc"
 )
 
-func RegisterUser(c echo.Context) error {
-	req := new(pb.RegisterUserRequest)
+func LoginUser(c echo.Context) error {
+	req := new(pb.LoginUserRequest)
 	if err := c.Bind(req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
@@ -27,14 +27,10 @@ func RegisterUser(c echo.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	resp, err := client.RegisterUser(ctx, req)
+	resp, err := client.LoginUser(ctx, req)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": resp.Message,
-		"user_id": resp.UserId,
-	})
-
+	return c.JSON(http.StatusOK, resp)
 }

@@ -9,8 +9,8 @@ import (
 	"log"
 	"net"
 
+	"github.com/golang-jwt/jwt/v4"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -34,7 +34,6 @@ func (s *BookRentalServiceServer) RegisterUser(ctx context.Context, req *pb.Regi
 	}
 
 	newUser := entity.User{
-		ID:       primitive.NewObjectID(),
 		Username: req.Username,
 		Password: req.Password,
 	}
@@ -48,14 +47,39 @@ func (s *BookRentalServiceServer) RegisterUser(ctx context.Context, req *pb.Regi
 
 	return &pb.RegisterUserResponse{
 		Message: "User registered successfully",
-		UserId:  newUser.ID.Hex(),
+	}, nil
+}
+
+func (s *BookRentalServiceServer) LoginUser(ctx context.Context, req *pb.LoginUserRequest) (*pb.LoginUserResponse, error) {
+	var user entity.User
+
+	err := s.usersCollection.FindOne(ctx, bson.M{"username": req.Username}).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, status.Errorf(codes.NotFound, "username not found")
+		}
+
+		return nil, status.Errorf(codes.Internal, "failed to fetch user: %v", err)
+	}
+
+	if user.Password != req.Password {
+		return nil, status.Errorf(codes.Unauthenticated, "invalid password")
+	}
+
+	token, err := generateJWT(req.Username)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to generate token: %v", err)
+	}
+
+	return &pb.LoginUserResponse{
+		Token: token,
 	}, nil
 }
 
 func UnaryAuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	fmt.Printf("Handling method: %s\n", info.FullMethod)
 
-	if info.FullMethod == "/bookrental.BookRentalService/RegisterUser" {
+	if info.FullMethod == "/bookrental.BookRentalService/RegisterUser" || info.FullMethod == "/bookrental.BookRentalService/LoginUser" {
 		return handler(ctx, req)
 	}
 
@@ -82,6 +106,16 @@ func AuthInterceptor(ctx context.Context) (context.Context, error) {
 
 	fmt.Println("Token validated successfully")
 	return ctx, nil
+}
+
+func generateJWT(username string) (string, error) {
+	secretKey := []byte("12345")
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"username": username,
+	})
+
+	return token.SignedString(secretKey)
 }
 
 func main() {

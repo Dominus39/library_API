@@ -2,14 +2,14 @@ package main
 
 import (
 	"gc2-yugo/client/handler"
-	"gc2-yugo/utils"
+	//"gc2-yugo/utils"
 
 	"github.com/labstack/echo/v4"
 )
 
 func main() {
 
-	utils.StartSchedulerJob()
+	//utils.StartSchedulerJob()
 
 	e := echo.New()
 

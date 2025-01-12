@@ -13,6 +13,7 @@ func main() {
 	e.POST("/login", handler.LoginUser)
 	e.POST("/book/add", handler.AddBook)
 	e.DELETE("/book/remove/:id", handler.RemoveBook)
+	e.POST("/book/borrow/:id", handler.BorrowBook)
 
 	e.Logger.Fatal(e.Start(":8080"))
 }

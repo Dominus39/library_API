@@ -19,3 +19,11 @@ type Book struct {
 	PublishedDate time.Time          `json:"published_date" bson:"published_date"`
 	Status        string             `json:"status"`
 }
+
+type BorrowedBooks struct {
+	ID           primitive.ObjectID `json:"_id" bson:"_id, omitempty"`
+	BookID       string             `json:"book_id" bson:"book_id"`
+	UserID       string             `json:"user_id" bson:"user_id"`
+	BorrowedDate string             `json:"borrowed_date" bson:"borrowed_date"`
+	ReturnDate   string             `json:"return_date" bsong:"return_date"`
+}

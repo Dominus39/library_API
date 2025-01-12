@@ -70,3 +70,34 @@ func ConnectionDatabaseBooks(ctx context.Context) (*mongo.Collection, error) {
 	collection := client.Database("GC2").Collection("books")
 	return collection, nil
 }
+
+func ConnectionDatabaseBorrowedBooks(ctx context.Context) (*mongo.Collection, error) {
+	// Define the MongoDB connection string
+	var mongoURI string
+
+	if os.Getenv("RUNNING_IN_DOCKER") == "true" {
+		mongoURI = "mongodb://host.docker.internal:27017"
+	} else {
+		mongoURI = "mongodb://localhost:27017" // For local development
+	}
+
+	// Create client options with the URI
+	clientOptions := options.Client().ApplyURI(mongoURI)
+
+	// Create a MongoDB client
+	client, err := mongo.Connect(ctx, clientOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	// Test the connection with a timeout
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := client.Ping(ctx, nil); err != nil {
+		return nil, err
+	}
+
+	// Return the collection
+	collection := client.Database("GC2").Collection("borrowed_books")
+	return collection, nil
+}

@@ -23,13 +23,14 @@ import (
 
 type BookRentalServiceServer struct {
 	pb.UnimplementedBookRentalServiceServer
-	usersCollection *mongo.Collection
-	booksCollection *mongo.Collection
+	usersCollection         *mongo.Collection
+	booksCollection         *mongo.Collection
+	borrowedBooksCollection *mongo.Collection
 }
 
 type contextKey string
 
-const usernameKey contextKey = "username"
+const userIDKey contextKey = "user_id"
 
 func (s *BookRentalServiceServer) RegisterUser(ctx context.Context, req *pb.RegisterUserRequest) (*pb.RegisterUserResponse, error) {
 	var existingUser entity.User
@@ -74,7 +75,7 @@ func (s *BookRentalServiceServer) LoginUser(ctx context.Context, req *pb.LoginUs
 		return nil, status.Errorf(codes.Unauthenticated, "invalid password")
 	}
 
-	token, err := generateJWT(req.Username)
+	token, err := generateJWT(user.ID.Hex())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to generate token: %v", err)
 	}
@@ -128,6 +129,63 @@ func (s *BookRentalServiceServer) RemoveBook(ctx context.Context, req *pb.Remove
 	}, nil
 }
 
+func (s *BookRentalServiceServer) BorrowBook(ctx context.Context, req *pb.BorrowBookRequest) (*pb.BorrowBookResponse, error) {
+	// Extract user ID from JWT claims
+
+	userID, ok := ctx.Value(userIDKey).(string)
+	if !ok {
+		return nil, status.Errorf(codes.Unauthenticated, "Invalid token claims")
+	}
+
+	// Validate book ID
+	bookID, err := primitive.ObjectIDFromHex(req.BookId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid book ID format")
+	}
+
+	// Find the book by ID
+	var book entity.Book
+	err = s.booksCollection.FindOne(ctx, bson.M{"_id": req.BookId}).Decode(&book)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, status.Errorf(codes.NotFound, "book not found")
+		}
+		return nil, status.Errorf(codes.Internal, "failed to fetch book: %v", err)
+	}
+
+	// Check if the book is already borrowed
+	if book.Status == "borrowed" {
+		return nil, status.Errorf(codes.InvalidArgument, "the book is already borrowed")
+	}
+
+	// Update book status to "borrowed"
+	_, err = s.booksCollection.UpdateOne(ctx, bson.M{"_id": bookID}, bson.M{"$set": bson.M{"status": "borrowed"}})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to update book status")
+	}
+
+	borrowedDate := time.Now().Format("2006-01-02")                       // Format date as string (or use time.Time)
+	returnDate := time.Now().Add(7 * 24 * time.Hour).Format("2006-01-02") // Add 7 days to borrowedDate
+
+	// Create a BorrowedBooks entry
+	borrowedBook := entity.BorrowedBooks{
+		ID:           primitive.NewObjectID(),
+		BookID:       bookID.Hex(),
+		UserID:       userID,
+		BorrowedDate: borrowedDate,
+		ReturnDate:   returnDate,
+	}
+
+	_, err = s.borrowedBooksCollection.InsertOne(ctx, borrowedBook)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to record borrowed book")
+	}
+
+	return &pb.BorrowBookResponse{
+		Message: "Book borrowed successfully",
+	}, nil
+}
+
 func UnaryAuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	fmt.Printf("Handling method: %s\n", info.FullMethod)
 
@@ -164,24 +222,24 @@ func AuthInterceptor(ctx context.Context) (context.Context, error) {
 		return nil, status.Errorf(codes.Unauthenticated, "Unauthorized: %v", err)
 	}
 
-	username, ok := claims["username"].(string)
+	userID, ok := claims["user_id"].(string)
 	if !ok {
 		return nil, status.Errorf(codes.Unauthenticated, "Unauthorized: Invalid token claims")
 	}
 
-	ctx = context.WithValue(ctx, usernameKey, username)
+	ctx = context.WithValue(ctx, userIDKey, userID)
 
 	fmt.Println("Token validated successfully")
 	return ctx, nil
 }
 
-func generateJWT(username string) (string, error) {
+func generateJWT(userID string) (string, error) {
 	secretKey := []byte("12345")
 
 	claims := jwt.MapClaims{
-		"username": username,
-		"exp":      time.Now().Add(time.Hour * 24).Unix(),
-		"iat":      time.Now().Unix(),
+		"user_id": userID,
+		"exp":     time.Now().Add(time.Hour * 24).Unix(),
+		"iat":     time.Now().Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -224,12 +282,18 @@ func main() {
 		log.Fatalf("failed to connect books database: %v", err)
 	}
 
+	borrowedBooksCollection, err := config.ConnectionDatabaseBorrowedBooks(ctx)
+	if err != nil {
+		log.Fatalf("failed to connect borrowed_books database: %v", err)
+	}
+
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(UnaryAuthInterceptor),
 	)
 	bookRentalService := &BookRentalServiceServer{
-		usersCollection: usersCollection,
-		booksCollection: booksCollection,
+		usersCollection:         usersCollection,
+		booksCollection:         booksCollection,
+		borrowedBooksCollection: borrowedBooksCollection,
 	}
 
 	pb.RegisterBookRentalServiceServer(grpcServer, bookRentalService)

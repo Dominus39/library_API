@@ -22,6 +22,7 @@ require (
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/montanaflynn/stats v0.7.1 // indirect
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect

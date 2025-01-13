@@ -10,6 +10,17 @@ import (
 	"google.golang.org/grpc"
 )
 
+// RegisterUser godoc
+// @Summary User registration
+// @Description Allows a new user to register for an account
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param register_user_request body pb.RegisterUserRequest true "Register user request"
+// @Success 200 {object} map[string]interface{} "Successfully registered"
+// @Failure 400 {object} ErrorResponse "Bad request"
+// @Failure 500 {object} ErrorResponse "Internal Server Error"
+// @Router /register [post]
 func RegisterUser(c echo.Context) error {
 	req := new(pb.RegisterUserRequest)
 	if err := c.Bind(req); err != nil {

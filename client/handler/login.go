@@ -10,6 +10,18 @@ import (
 	"google.golang.org/grpc"
 )
 
+// LoginUser godoc
+// @Summary User login
+// @Description Allows a user to log in using their credentials
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param login_user_request body pb.LoginUserRequest true "Login user request"
+// @Success 200 {object} pb.LoginUserResponse "Successfully logged in"
+// @Failure 400 {object} ErrorResponse "Bad request"
+// @Failure 401 {object} ErrorResponse "Unauthorized - invalid credentials"
+// @Failure 500 {object} ErrorResponse "Internal Server Error"
+// @Router /login [post]
 func LoginUser(c echo.Context) error {
 	req := new(pb.LoginUserRequest)
 	if err := c.Bind(req); err != nil {

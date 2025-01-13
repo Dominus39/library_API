@@ -11,6 +11,18 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+// RemoveBook godoc
+// @Summary Remove a book from the library
+// @Description Allows an admin or authorized user to remove a book from the library
+// @Tags books
+// @Accept json
+// @Produce json
+// @Param id path string true "Book ID" example("60c72b2f9e15b92bbcf68f2b")
+// @Success 200 {object} pb.RemoveBookResponse "Successfully removed the book"
+// @Failure 400 {object} ErrorResponse "Invalid book ID format"
+// @Failure 401 {object} ErrorResponse "Unauthorized"
+// @Failure 500 {object} ErrorResponse "Internal Server Error"
+// @Router /book/remove/{id} [delete]
 func RemoveBook(c echo.Context) error {
 
 	bookID := c.Param("id")

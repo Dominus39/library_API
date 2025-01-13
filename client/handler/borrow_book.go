@@ -11,6 +11,19 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+// BorrowBook godoc
+// @Summary Borrow a book
+// @Description Allows a user to borrow a book by its ID
+// @Tags books
+// @Accept json
+// @Produce json
+// @Param id path string true "Book ID" format(string)
+// @Param Authorization header string true "Bearer <JWT Token>"
+// @Success 200 {object} pb.BorrowBookResponse "Successfully borrowed the book"
+// @Failure 400 {object} ErrorResponse "Bad request"
+// @Failure 401 {object} ErrorResponse "Unauthorized - missing or invalid token"
+// @Failure 500 {object} ErrorResponse "Internal Server Error"
+// @Router /book/borrow/{id} [post]
 func BorrowBook(c echo.Context) error {
 	// Extract book ID from the URL
 	bookID, err := primitive.ObjectIDFromHex(c.Param("id"))
